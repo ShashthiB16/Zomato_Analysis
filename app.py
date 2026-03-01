@@ -26,10 +26,10 @@ if uploaded_file is not None:
 
     df['approx_cost'] = df['approx_cost'].replace('[,]', '', regex=True).astype('int64')
 
-    df['rate'] = df['rate'].replace('-', 0)
-    df['rate'] = df['rate'].replace('NEW', 0)
-    df['rate'] = df['rate'].replace('[/5]', '', regex=True).astype('float64')
-
+    df['rate'] = df['rate'].astype(str)
+df['rate'] = df['rate'].str.replace('/5', '', regex=False)
+df['rate'] = df['rate'].replace(['-', 'NEW', 'nan'], 0)
+df['rate'] = pd.to_numeric(df['rate'], errors='coerce').fillna(0)
     st.success("✅ Data Loaded Successfully!")
 
     # Sidebar Filters
