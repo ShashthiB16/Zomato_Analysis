@@ -10,7 +10,7 @@ st.title("🍽️ Zomato Data Analysis Dashboard")
 # Load Dataset
 @st.cache_data
 def load_data():
-    df = pd.read_csv("zomato.csv")
+    df = pd.read_csv("zomato_csv")
     df.columns = df.columns.str.strip()
     return df
 
