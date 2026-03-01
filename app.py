@@ -1,75 +1,110 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sb
 
-st.set_page_config(page_title="Zomato Data Analysis", layout="wide")
+st.set_page_config(page_title="Zomato Analysis Dashboard", layout="wide")
 
 st.title("🍽️ Zomato Data Analysis Dashboard")
 
-# File Upload
-uploaded_file = st.file_uploader("Upload Zomato CSV File", type=["csv"])
+# Load Dataset
+@st.cache_data
+def load_data():
+    df = pd.read_csv("zomato.csv")
+    df.columns = df.columns.str.strip()
+    return df
 
-if uploaded_file is not None:
-    
-    # Load Data
-    df = pd.read_csv(uploaded_file)
+df = load_data()
 
-    # Data Cleaning
-    df = df.drop(['url','address','book_table','phone','dish_liked',
-                  'reviews_list','menu_item','listed_in(type)',
-                  'listed_in(city)','cuisines'], axis=1)
+st.sidebar.header("🔎 Filters")
 
-    df = df.rename(columns={'approx_cost(for two people)':'approx_cost'})
-    df = df.fillna(0)
+# Sidebar Location Filter
+location_list = sorted(df['location'].dropna().unique())
+selected_location = st.sidebar.selectbox("Select Location", location_list)
 
-    df['approx_cost'] = df['approx_cost'].replace('[,]', '', regex=True).astype('int64')
+# Sidebar Rest Type Filter
+rest_type_list = sorted(df['rest_type'].dropna().unique())
+selected_rest_type = st.sidebar.selectbox("Select Restaurant Type", rest_type_list)
 
-    df['rate'] = df['rate'].astype(str)
-df['rate'] = df['rate'].str.replace('/5', '', regex=False)
-df['rate'] = df['rate'].replace(['-', 'NEW', 'nan'], 0)
-df['rate'] = pd.to_numeric(df['rate'], errors='coerce').fillna(0)
-    st.success("✅ Data Loaded Successfully!")
+# Top N Selector
+top_n = st.sidebar.slider("Select Top N", 5, 20, 10)
 
-    # Sidebar Filters
-    st.sidebar.header("🔎 Filter Options")
+# ==============================
+# 📊 LOCATION ANALYSIS
+# ==============================
 
-    locations = st.sidebar.multiselect(
-        "Select Location",
-        options=df['location'].unique(),
-        default=df['location'].unique()[:5]
-    )
+st.header("📍 Location Based Analysis")
 
-    filtered_df = df[df['location'].isin(locations)]
+col1, col2 = st.columns(2)
 
-    # Show Data
-    if st.checkbox("Show Raw Data"):
-        st.dataframe(filtered_df)
+with col1:
+    st.subheader("Top Locations by Avg Cost")
+    top_cost = df.groupby('location')['approx_cost'].mean().nlargest(top_n)
+    fig1, ax1 = plt.subplots()
+    sb.barplot(x=top_cost.values, y=top_cost.index, ax=ax1)
+    st.pyplot(fig1)
 
-    # Top N Slider
-    top_n = st.slider("Select Top Locations by Avg Cost", 5, 20, 10)
-
-    top_locations = (
-        filtered_df.groupby('location')['approx_cost']
-        .mean()
-        .nlargest(top_n)
-    )
-
-    st.subheader(f"🏆 Top {top_n} Locations by Average Cost")
-
-    # Bar Chart
-    fig, ax = plt.subplots()
-    top_locations.plot(kind='bar', ax=ax)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-
-    # Rating vs Cost Scatter
-    st.subheader("⭐ Rating vs Approx Cost")
-
+with col2:
+    st.subheader("Top Locations by Avg Rating")
+    top_rate = df.groupby('location')['rate'].mean().nlargest(top_n)
     fig2, ax2 = plt.subplots()
-    sb.scatterplot(data=filtered_df, x='approx_cost', y='rate', ax=ax2)
+    sb.barplot(x=top_rate.values, y=top_rate.index, ax=ax2)
     st.pyplot(fig2)
 
-else:
-    st.info("Please upload the Zomato dataset CSV file to begin.")
+# ==============================
+# 🍴 REST TYPE ANALYSIS
+# ==============================
+
+st.header("🍴 Restaurant Type Analysis")
+
+col3, col4 = st.columns(2)
+
+with col3:
+    st.subheader("Top Rest Types by Votes")
+    top_votes = df.groupby('rest_type')['votes'].sum().nlargest(top_n)
+    fig3, ax3 = plt.subplots()
+    sb.barplot(x=top_votes.values, y=top_votes.index, ax=ax3)
+    st.pyplot(fig3)
+
+with col4:
+    st.subheader("Top Rest Types by Avg Rating")
+    top_rest_rate = df.groupby('rest_type')['rate'].mean().nlargest(top_n)
+    fig4, ax4 = plt.subplots()
+    sb.barplot(x=top_rest_rate.values, y=top_rest_rate.index, ax=ax4)
+    st.pyplot(fig4)
+
+# ==============================
+# 🎯 LOCATION SPECIFIC ANALYSIS
+# ==============================
+
+st.header(f"🏆 Top Restaurants in {selected_location}")
+
+filtered_df = df[df['location'] == selected_location]
+
+top_restaurants = (
+    filtered_df.groupby('name')['approx_cost']
+    .mean()
+    .nlargest(top_n)
+)
+
+fig5, ax5 = plt.subplots()
+sb.barplot(x=top_restaurants.values, y=top_restaurants.index, ax=ax5)
+st.pyplot(fig5)
+
+# ==============================
+# 📌 REST TYPE SPECIFIC
+# ==============================
+
+st.header(f"🍽️ {selected_rest_type} Restaurant Insights")
+
+rest_filtered = df[df['rest_type'] == selected_rest_type]
+
+col5, col6 = st.columns(2)
+
+with col5:
+    st.metric("Average Cost", round(rest_filtered['approx_cost'].mean(), 2))
+
+with col6:
+    st.metric("Average Rating", round(rest_filtered['rate'].mean(), 2))
+
+st.dataframe(rest_filtered.head(20))
